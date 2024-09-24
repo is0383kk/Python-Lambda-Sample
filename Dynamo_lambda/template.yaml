@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: S3 Lambda Application
+
+Globals:
+  Function:
+    Timeout: 5
+    MemorySize: 128
+    Runtime: python3.11
+    Architectures:
+      - arm64
+    LoggingConfig:
+      LogFormat: JSON
+      ApplicationLogLevel: INFO
+    Environment:
+      Variables:
+        POWERTOOLS_SERVICE_NAME: DynamoApplication
+        AWS_REGION_NAME: ap-northeast-1
+
+Parameters:
+  OverridesParam:
+    Type: String
+    Description: OverridesParam
+  Stage:
+    Type: String
+    Default: dev
+    Description: Stage Name
+
+Resources:
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ApiGateway-${OverridesParam}
+      StageName: !Ref Stage
+      EndpointConfiguration:
+        Type: REGIONAL
+
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: CommonLayer
+      Description: Common Layer
+      ContentUri: common_layer/
+      CompatibleRuntimes:
+        - python3.11
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: python3.11
+      BuildArchitecture: arm64
+
+  DynamoLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      CodeUri: src/dynamo_lambda_function
+      Description: lecture api lambda handler
+      Layers:
+        - !Ref CommonLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /{proxy+}
+            Method: Any
+            Auth:
+              ApiKeyRequired: true
+      Environment:
+        Variables:
+          DYNAMO_TABLE_NAME: !Ref DynamoDBLambdaTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBLambdaTable
+      Tags:
+        Name: "dynamo-lambda-function"
+      Timeout: 300
+
+  DynamoDBLambdaTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "dynamo-${OverridesParam}"
+      AttributeDefinitions:
+        - AttributeName: dynamo_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: dynamo_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: !Sub ApiKey-${OverridesParam}
+      Description: APIKey
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref Api
+          StageName: !Ref Stage
+    DependsOn:
+      - Api
+      - ApiStage
+
+  # Apiの利用制限設定
+  ApiUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      ApiStages:
+        - ApiId: !Ref Api # APIステージ
+          Stage: !Ref Stage
+      Throttle:
+        BurstLimit: 100 # バースト制限
+        RateLimit: 100 # レート制限
+      UsagePlanName: !Sub UsagePlan-${OverridesParam} # 使用プランの名前
+    DependsOn:
+      - Api
+      - ApiStage
+
+  # ApiKeyとApiUsagePlanの紐づけ設定
+  ApiUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKey # APIキーID
+      KeyType: API_KEY # キータイプ
+      UsagePlanId: !Ref ApiUsagePlan
