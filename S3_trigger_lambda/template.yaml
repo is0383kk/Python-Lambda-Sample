@@ -2,81 +2,88 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: S3 Lambda Application
 
+# SAM テンプレートのバージョンを指定し、サーバーレスアプリケーションを定義
 Globals:
   Function:
-    Timeout: 5
-    MemorySize: 128
-    Runtime: python3.11
+    Timeout: 5              # Lambda 関数のデフォルトのタイムアウト（5秒）
+    MemorySize: 128          # デフォルトのメモリサイズ（128MB）
+    Runtime: python3.11      # Python 3.11 をランタイムとして使用
     Architectures:
-      - arm64
+      - arm64                # Lambda 関数を ARM64 アーキテクチャで実行
     LoggingConfig:
-      LogFormat: JSON
-      ApplicationLogLevel: INFO
+      LogFormat: JSON        # ログフォーマットを JSON 形式に設定
+      ApplicationLogLevel: INFO # ログレベルを INFO に設定
     Environment:
       Variables:
-        POWERTOOLS_SERVICE_NAME: S3Application
-        AWS_REGION_NAME: ap-northeast-1
+        POWERTOOLS_SERVICE_NAME: S3Application  # Powertools のサービス名を指定
+        AWS_REGION_NAME: ap-northeast-1         # 使用する AWS リージョン
 
+# パラメータセクション：デプロイ時に渡されるカスタムパラメータ
 Parameters:
   OverridesParam:
-    Type: String
-    Description: OverridesParam
+    Type: String            # パラメータの型を String に設定
+    Description: OverridesParam # パラメータの説明
 
+# リソースセクション：Lambda 関数、S3 バケット、レイヤーなどの AWS リソースを定義
 Resources:
+  # 共通の Lambda Layer を定義
   CommonLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: CommonLayer
-      Description: Common Layer
-      ContentUri: common_layer/
+      LayerName: CommonLayer               # レイヤーの名前を定義
+      Description: Common Layer            # レイヤーの説明
+      ContentUri: common_layer/            # レイヤーのソースコードの場所
       CompatibleRuntimes:
-        - python3.11
-      RetentionPolicy: Delete
+        - python3.11                      # Python 3.11 ランタイムに対応
+      RetentionPolicy: Delete              # 古いレイヤーバージョンを自動削除
     Metadata:
-      BuildMethod: python3.11
-      BuildArchitecture: arm64
+      BuildMethod: python3.11              # SAM によるビルド設定
+      BuildArchitecture: arm64             # ARM64 アーキテクチャでビルド
 
+  # S3 と連携する Lambda 関数を定義
   S3LambdaFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: lambda_function.lambda_handler
-      CodeUri: src/s3_lambda_functions/
-      Description: S3 Lambda function
+      Handler: lambda_function.lambda_handler  # Lambda 関数のエントリーポイント（ハンドラ）
+      CodeUri: src/s3_lambda_functions/        # 関数コードのパス
+      Description: S3 Lambda function          # 関数の説明
       Layers:
-        - !Ref CommonLayer
+        - !Ref CommonLayer                    # 共通レイヤーを関数に適用
       Policies:
-        - Statement:
+        - Statement:                          # S3 バケットへのアクセス許可を設定
             Effect: Allow
-            Action:
-              - s3:ListBucket
-              - s3:GetObject
-            Resource:
+            Action:                           # 許可されるアクション
+              - s3:ListBucket                 # バケットのリストを取得
+              - s3:GetObject                  # オブジェクトの取得を許可
+            Resource:                         # 許可するリソース（S3 バケット）
               - !Sub "arn:aws:s3:::lambda-bucket-${OverridesParam}"
               - !Sub "arn:aws:s3:::lambda-bucket-${OverridesParam}/*"
       Events:
-        S3Event:
-          Type: S3
+        S3Event:                              # S3 イベントトリガーを設定
+          Type: S3                            # S3 イベントタイプ
           Properties:
-            Bucket: !Ref S3LambdaBucket
-            Events: s3:ObjectCreated:*
-            Filter:
+            Bucket: !Ref S3LambdaBucket       # イベントがトリガーされるバケットを指定
+            Events: s3:ObjectCreated:*        # オブジェクト作成時にトリガー
+            Filter:                           # イベントフィルター（特定のプレフィックスに限定）
               S3Key:
                 Rules:
                   - Name: prefix
-                    Value: public/
+                    Value: public/            # "public/" プレフィックスで始まるオブジェクトのみ対象
       Tags:
-        Name: "s3-lambda-function"
-      Timeout: 300
+        Name: "s3-lambda-function"            # Lambda 関数に "s3-lambda-function" タグを追加
+      Timeout: 300                            # タイムアウト（300秒）
 
+  # S3 が Lambda 関数をトリガーするための権限を設定
   LambdaInvokePermissionForS3:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !GetAtt S3LambdaFunction.Arn
-      Action: "lambda:InvokeFunction"
-      Principal: "s3.amazonaws.com"
-      SourceArn: !GetAtt S3LambdaBucket.Arn
+      FunctionName: !GetAtt S3LambdaFunction.Arn  # Lambda 関数の ARN を取得
+      Action: "lambda:InvokeFunction"             # 関数の実行権限を付与
+      Principal: "s3.amazonaws.com"               # 実行元を S3 に制限
+      SourceArn: !GetAtt S3LambdaBucket.Arn       # 実行権限を与える S3 バケットの ARN
 
+  # S3 バケットを定義
   S3LambdaBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "lambda-bucket-${OverridesParam}"
+      BucketName: !Sub "lambda-bucket-${OverridesParam}" # パラメータに基づいたバケット名を指定

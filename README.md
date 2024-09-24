@@ -1,0 +1,2 @@
+- [Dynamo_lambda](https://github.com/is0383kk/Python-Lambda-Sample/tree/main/Dynamo_lambda)：Sample API to perform DynamoDB operations  
+- [3_trigger_lambda](https://github.com/is0383kk/Python-Lambda-Sample/tree/main/S3_trigger_lambda)：Sample of executing a Lambda function triggered by storing a file in S3  
