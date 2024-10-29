@@ -1,32 +1,32 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: S3 Lambda Application
+Description: DynamoDB Lambda Application
 
 # AWS SAM テンプレートを使ってサーバーレスアプリケーションをデプロイするための基本設定
 Globals:
   Function:
-    Timeout: 5               # デフォルトのタイムアウト（5秒）
-    MemorySize: 128           # Lambda 関数のメモリサイズ（128MB）
-    Runtime: python3.11       # 使用する Python ランタイムバージョン (Python 3.11)
+    Timeout: 5 # デフォルトのタイムアウト（5秒）
+    MemorySize: 128 # Lambda 関数のメモリサイズ（128MB）
+    Runtime: python3.11 # 使用する Python ランタイムバージョン (Python 3.11)
     Architectures:
-      - arm64                 # Lambda 関数を ARM64 アーキテクチャで実行
+      - arm64 # Lambda 関数を ARM64 アーキテクチャで実行
     LoggingConfig:
-      LogFormat: JSON         # ログフォーマットを JSON に設定
+      LogFormat: JSON # ログフォーマットを JSON に設定
       ApplicationLogLevel: INFO # ログレベルを INFO に設定
     Environment:
       Variables:
-        POWERTOOLS_SERVICE_NAME: DynamoApplication   # AWS Lambda Powertools で使うサービス名
-        AWS_REGION_NAME: ap-northeast-1              # デフォルトの AWS リージョン名
+        POWERTOOLS_SERVICE_NAME: DynamoApplication # AWS Lambda Powertools で使うサービス名
+        AWS_REGION_NAME: ap-northeast-1 # デフォルトの AWS リージョン名
 
 # パラメータセクション：テンプレートに対して外部から渡される引数
 Parameters:
   OverridesParam:
-    Type: String              # パラメータの型 (String)
+    Type: String # パラメータの型 (String)
     Description: OverridesParam # パラメータの説明
   Stage:
-    Type: String              # ステージ名のパラメータ（例：dev, prod）
-    Default: dev              # デフォルト値として dev を設定
-    Description: Stage Name   # ステージ名の説明
+    Type: String # ステージ名のパラメータ（例：dev, prod）
+    Default: dev # デフォルト値として dev を設定
+    Description: Stage Name # ステージ名の説明
 
 # リソースセクション：サーバーレスアプリケーションに必要な AWS リソースを定義
 Resources:
@@ -35,51 +35,51 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       Name: !Sub ApiGateway-${OverridesParam} # API Gateway 名を OverridesParam でカスタマイズ
-      StageName: !Ref Stage                   # ステージ名を指定
+      StageName: !Ref Stage # ステージ名を指定
       EndpointConfiguration:
-        Type: REGIONAL                       # エンドポイントをリージョン限定に設定
+        Type: REGIONAL # エンドポイントをリージョン限定に設定
 
   # 共通の Lambda Layer を定義
   CommonLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: CommonLayer                # レイヤーの名前を定義
-      Description: Common Layer             # レイヤーの説明
-      ContentUri: common_layer/             # レイヤーのソースコードパス
+      LayerName: CommonLayer # レイヤーの名前を定義
+      Description: Common Layer # レイヤーの説明
+      ContentUri: common_layer/ # レイヤーのソースコードパス
       CompatibleRuntimes:
-        - python3.11                       # レイヤーが対応するランタイム
-      RetentionPolicy: Delete              # 不要になったレイヤーは削除するポリシー
+        - python3.11 # レイヤーが対応するランタイム
+      RetentionPolicy: Delete # 不要になったレイヤーは削除するポリシー
     Metadata:
-      BuildMethod: python3.11              # SAM がレイヤーをビルドするためのランタイム
-      BuildArchitecture: arm64             # ARM64 アーキテクチャ用にビルド
+      BuildMethod: python3.11 # SAM がレイヤーをビルドするためのランタイム
+      BuildArchitecture: arm64 # ARM64 アーキテクチャ用にビルド
 
   # DynamoDB と連携する Lambda 関数
   DynamoLambdaFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: app.lambda_handler          # Lambda 関数のハンドラ
-      CodeUri: src/dynamo_lambda_function  # 関数コードの場所
+      Handler: app.lambda_handler # Lambda 関数のハンドラ
+      CodeUri: src/dynamo_lambda_function # 関数コードの場所
       Description: lecture api lambda handler # 関数の説明
       Layers:
-        - !Ref CommonLayer                 # CommonLayer を Lambda 関数に追加
+        - !Ref CommonLayer # CommonLayer を Lambda 関数に追加
       Events:
         ApiEvent:
           Type: Api
           Properties:
-            RestApiId: !Ref Api            # API Gateway を参照
-            Path: /{proxy+}                # プロキシ統合（すべてのパスを処理）
-            Method: Any                    # HTTP メソッド（GET, POST など全て）
+            RestApiId: !Ref Api # API Gateway を参照
+            Path: /{proxy+} # プロキシ統合（すべてのパスを処理）
+            Method: Any # HTTP メソッド（GET, POST など全て）
             Auth:
-              ApiKeyRequired: true         # API キーが必要
+              ApiKeyRequired: true # API キーが必要
       Environment:
         Variables:
           DYNAMO_TABLE_NAME: !Ref DynamoDBLambdaTable # DynamoDB テーブル名を環境変数で設定
       Policies:
-        - DynamoDBCrudPolicy:              # DynamoDB に対する CRUD 権限
+        - DynamoDBCrudPolicy: # DynamoDB に対する CRUD 権限
             TableName: !Ref DynamoDBLambdaTable
       Tags:
-        Name: "dynamo-lambda-function"     # タグとして関数の名前を設定
-      Timeout: 300                         # タイムアウト（300秒）
+        Name: "dynamo-lambda-function" # タグとして関数の名前を設定
+      Timeout: 300 # タイムアウト（300秒）
 
   # DynamoDB テーブルを定義
   DynamoDBLambdaTable:
@@ -87,23 +87,23 @@ Resources:
     Properties:
       TableName: !Sub "dynamo-${OverridesParam}" # DynamoDB テーブル名をパラメータに基づき設定
       AttributeDefinitions:
-        - AttributeName: dynamo_id           # パーティションキーとして使用する属性名
-          AttributeType: S                   # 属性タイプ（S：文字列）
+        - AttributeName: dynamo_id # パーティションキーとして使用する属性名
+          AttributeType: S # 属性タイプ（S：文字列）
       KeySchema:
-        - AttributeName: dynamo_id           # パーティションキー（HASHキー）
+        - AttributeName: dynamo_id # パーティションキー（HASHキー）
           KeyType: HASH
-      BillingMode: PAY_PER_REQUEST           # リクエストごとの課金モデル（オンデマンド）
+      BillingMode: PAY_PER_REQUEST # リクエストごとの課金モデル（オンデマンド）
 
   # API キーを定義
   ApiKey:
     Type: AWS::ApiGateway::ApiKey
     Properties:
-      Name: !Sub ApiKey-${OverridesParam}  # API キー名
-      Description: APIKey                 # API キーの説明
-      Enabled: true                       # API キーを有効化
+      Name: !Sub ApiKey-${OverridesParam} # API キー名
+      Description: APIKey # API キーの説明
+      Enabled: true # API キーを有効化
       StageKeys:
-        - RestApiId: !Ref Api             # API Gateway ID
-          StageName: !Ref Stage           # ステージ名
+        - RestApiId: !Ref Api # API Gateway ID
+          StageName: !Ref Stage # ステージ名
     DependsOn:
       - Api
       - ApiStage
@@ -113,11 +113,11 @@ Resources:
     Type: AWS::ApiGateway::UsagePlan
     Properties:
       ApiStages:
-        - ApiId: !Ref Api                 # API ID
-          Stage: !Ref Stage               # ステージ名
+        - ApiId: !Ref Api # API ID
+          Stage: !Ref Stage # ステージ名
       Throttle:
-        BurstLimit: 100                   # バースト制限（リクエストの瞬間最大数）
-        RateLimit: 100                    # レート制限（リクエストの毎秒最大数）
+        BurstLimit: 100 # バースト制限（リクエストの瞬間最大数）
+        RateLimit: 100 # レート制限（リクエストの毎秒最大数）
       UsagePlanName: !Sub UsagePlan-${OverridesParam} # 使用プランの名前
     DependsOn:
       - Api
@@ -127,6 +127,6 @@ Resources:
   ApiUsagePlanKey:
     Type: AWS::ApiGateway::UsagePlanKey
     Properties:
-      KeyId: !Ref ApiKey                  # API キーの ID
-      KeyType: API_KEY                    # キータイプ（API キー）
-      UsagePlanId: !Ref ApiUsagePlan       # 使用プランの ID
+      KeyId: !Ref ApiKey # API キーの ID
+      KeyType: API_KEY # キータイプ（API キー）
+      UsagePlanId: !Ref ApiUsagePlan # 使用プランの ID
