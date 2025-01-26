@@ -59,7 +59,7 @@ Resources:
     Properties:
       Handler: app.lambda_handler # Lambda 関数のハンドラ
       CodeUri: src/dynamo_lambda_function # 関数コードの場所
-      Description: lecture api lambda handler # 関数の説明
+      Description: DynamoDB lambda handler # 関数の説明
       Layers:
         - !Ref CommonLayer # CommonLayer を Lambda 関数に追加
       Events:
